@@ -20,35 +20,57 @@ args = parser.parse_args()
 
 def fgsm_attack(image, epsilon, data_grad):
     grad_sign = data_grad.sign() #Finding sign of the gradient 
-    perturbed_image = image + (2*epsilon*grad_sign)/255
-    perturbed_image = torch.clamp(perturbed_image, 0, 1) #clamping values between 0 and 1
+    perturbed_image = image + epsilon*grad_sign/255
+    perturbed_image = torch.clamp(perturbed_image, 0,1 ) #clamping values between 0 and 1
     return perturbed_image
 
-def train(net, criterion, optimizer, dataloader,epsilon, num_epochs=15):
+def train(net, criterion, optimizer, dataloader, epsilon, alpha, num_epochs=15):
     with tqdm(range(num_epochs), desc='training') as training_bar:
         for epoch in training_bar:
-            running_loss = 0.0
+            example_loss = 0.0
             epoch_bar = tqdm(enumerate(dataloader), desc=f'epoch {epoch + 1}')
             for i, data in epoch_bar:
                 inputs, labels = data
-                outputs = net(inputs)
                 inputs.requires_grad = True
-                outputs = net(inputs)
-                loss = criterion(outputs, labels)
-                optimizer.zero_grad()
-                loss.backward()
                 data_grad = inputs.grad.data
                 perturbed_inputs = fgsm_attack(inputs, epsilon, data_grad)
-
-                outputs = net(perturbed_inputs)
-                loss = criterion(outputs, labels)
+                train_inputs = torch.cat((inputs, perturbed_inputs), 0)
+                train_labels = torch.cat((labels, labels), 0)
                 optimizer.zero_grad()
-                loss.backward()
+                outputs = net(train_inputs)
+                train_loss = criterion(outputs, train_labels)
+                train_loss.backward()
                 optimizer.step()
-
-                running_loss += loss.item()
+                example_loss += train_loss.item()
+                epoch_bar.set_postfix(
+                    avg_example_loss = example_loss/(i+1)
+                )
         
-            print(f"Epoch {epoch+1} loss: {running_loss/len(dataloader)}")
+            # Evaluate model on clean test set
+            correct = 0
+            total = 0
+            with torch.no_grad():
+                for data in dataloader:
+                    inputs, labels = data
+                    outputs = net(inputs)
+                    predicted = torch.max(outputs.data, 1)
+                    total += labels.size(0)
+                    correct += (predicted == labels).sum().item()
+            print(f'----> accuracy on the clean test set: {100 * correct / total:.2f}%')
+
+            # Evaluate model on adversarial test set
+            correct = 0
+            total = 0
+            with torch.no_grad():
+                for data in dataloader:
+                    inputs, labels = data
+                    inputs.requires_grad = True
+                    perturbed_inputs = fgsm_attack(inputs, alpha, inputs.grad.data)
+                    perturbed_outputs = net(perturbed_inputs)
+                    predicted = torch.max(perturbed_outputs.data, 1)
+                    total += labels.size(0)
+                    correct += (predicted == labels).sum().item()
+            print(f'----> accuracy on the adversarial test set: {100 * correct / total:.2f}%')
 
     print('----> finished training')
 
