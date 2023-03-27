@@ -20,7 +20,7 @@ args = parser.parse_args()
 
 def fgsm_attack(image, epsilon, data_grad):
     grad_sign = data_grad.sign() #Finding sign of the gradient 
-    perturbed_image = image + epsilon*grad_sign
+    perturbed_image = image + (2*epsilon*grad_sign)/255
     perturbed_image = torch.clamp(perturbed_image, 0, 1) #clamping values between 0 and 1
     return perturbed_image
 
