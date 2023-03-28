@@ -4,7 +4,7 @@ import torchvision.transforms as transforms
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-
+import numpy as np
 from zipfile import ZipFile
 from tqdm.auto import tqdm
 import os
@@ -20,22 +20,24 @@ args = parser.parse_args()
 
 def fgsm_attack(image, epsilon, data_grad):
     grad_sign = data_grad.sign() #Finding sign of the gradient 
-    perturbed_image = image + epsilon*grad_sign/255
-    perturbed_image = torch.clamp(perturbed_image, 0,1 ) #clamping values between 0 and 1
+    perturbed_image = image + (epsilon*grad_sign)/255
+    perturbed_image = torch.clamp(perturbed_image,-2*epsilon ,2*epsilon ) 
     return perturbed_image
 
-def train(net, criterion, optimizer, dataloader, epsilon, alpha, num_epochs=15):
+def train(net, criterion, optimizer, dataloader, alpha, num_epochs=15):
     with tqdm(range(num_epochs), desc='training') as training_bar:
         for epoch in training_bar:
             example_loss = 0.0
             epoch_bar = tqdm(enumerate(dataloader), desc=f'epoch {epoch + 1}')
             for i, data in epoch_bar:
                 inputs, labels = data
+                perturbed_labels = np.full(len(perturbed_inputs),'not_cat')
                 inputs.requires_grad = True
                 data_grad = inputs.grad.data
-                perturbed_inputs = fgsm_attack(inputs, epsilon, data_grad)
-                train_inputs = torch.cat((inputs, perturbed_inputs), 0)
-                train_labels = torch.cat((labels, labels), 0)
+                perturbed_inputs = fgsm_attack(inputs, alpha, data_grad)
+                print('alpha : ' , alpha)
+                train_inputs = torch.cat((inputs, perturbed_inputs), 0) #concatenating original images with perturbed images
+                train_labels = torch.cat((labels, perturbed_labels), 0)
                 optimizer.zero_grad()
                 outputs = net(train_inputs)
                 train_loss = criterion(outputs, train_labels)
@@ -129,7 +131,7 @@ def main():
 
     net = Net()
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(net.parameters(), lr=0.001)
+    optimizer = optim.adam(net.parameters(), lr=0.001)
 
     ########################
     #### unzipping data ####
