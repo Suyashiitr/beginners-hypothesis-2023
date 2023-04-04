@@ -131,7 +131,7 @@ def main():
 
     net = Net()
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.adam(net.parameters(), lr=0.001)
+    optimizer = optim.Adam(net.parameters(), lr=0.001)
 
     ########################
     #### unzipping data ####
