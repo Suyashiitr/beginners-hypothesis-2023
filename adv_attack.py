@@ -31,12 +31,12 @@ def train(net, criterion, optimizer, dataloader, alpha, num_epochs=15):
             epoch_bar = tqdm(enumerate(dataloader), desc=f'epoch {epoch + 1}')
             for i, data in epoch_bar:
                 inputs, labels = data
-                perturbed_labels = np.full(len(perturbed_inputs),'not_cat')
                 inputs.requires_grad = True
                 data_grad = inputs.grad.data
                 perturbed_inputs = fgsm_attack(inputs, alpha, data_grad)
                 print('alpha : ' , alpha)
                 train_inputs = torch.cat((inputs, perturbed_inputs), 0) #concatenating original images with perturbed images
+                perturbed_labels = np.full(len(perturbed_inputs),'not_cat')
                 train_labels = torch.cat((labels, perturbed_labels), 0)
                 optimizer.zero_grad()
                 outputs = net(train_inputs)
