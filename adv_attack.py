@@ -22,7 +22,7 @@ def fgsm_attack(image, epsilon, data_grad):
     data_grad = image.grad.data
     grad_sign = data_grad.sign() #Finding sign of the gradient 
     perturbed_image = image + (epsilon*grad_sign)
-    perturbed_image = torch.clamp(perturbed_image,0.2924,0.6878 ) 
+    perturbed_image = torch.clamp(perturbed_image,0,1 ) 
     return perturbed_image
 
 def train(net, criterion, optimizer, dataloader, alpha, num_epochs=20):
