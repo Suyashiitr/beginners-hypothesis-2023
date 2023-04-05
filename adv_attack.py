@@ -18,28 +18,30 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--train_data', type=str, required=True)
 args = parser.parse_args()
 
-def fgsm_attack(image, epsilon, data_grad):
+def fgsm_attack(image, epsilon, data_grad): 
+    data_grad = image.grad.data
     grad_sign = data_grad.sign() #Finding sign of the gradient 
-    perturbed_image = image + (epsilon*grad_sign)/255
-    perturbed_image = torch.clamp(perturbed_image,-2*epsilon ,2*epsilon ) 
+    perturbed_image = image + (epsilon*grad_sign)
+    perturbed_image = torch.clamp(perturbed_image,0.2924,0.6878 ) 
     return perturbed_image
 
-def train(net, criterion, optimizer, dataloader, alpha, num_epochs=15):
+def train(net, criterion, optimizer, dataloader, alpha, num_epochs=20):
     with tqdm(range(num_epochs), desc='training') as training_bar:
         for epoch in training_bar:
             example_loss = 0.0
             epoch_bar = tqdm(enumerate(dataloader), desc=f'epoch {epoch + 1}')
             for i, data in epoch_bar:
                 inputs, labels = data
+                perturbed_labels = np.full(len(perturbed_inputs),'not_cat')
                 inputs.requires_grad = True
                 data_grad = inputs.grad.data
                 perturbed_inputs = fgsm_attack(inputs, alpha, data_grad)
                 print('alpha : ' , alpha)
                 train_inputs = torch.cat((inputs, perturbed_inputs), 0) #concatenating original images with perturbed images
-                perturbed_labels = np.full(len(perturbed_inputs),'not_cat')
                 train_labels = torch.cat((labels, perturbed_labels), 0)
                 optimizer.zero_grad()
                 outputs = net(train_inputs)
+                outputs.retain_grad()
                 train_loss = criterion(outputs, train_labels)
                 train_loss.backward()
                 optimizer.step()
@@ -47,7 +49,7 @@ def train(net, criterion, optimizer, dataloader, alpha, num_epochs=15):
                 epoch_bar.set_postfix(
                     avg_example_loss = example_loss/(i+1)
                 )
-        
+       
             # Evaluate model on clean test set
             correct = 0
             total = 0
@@ -119,6 +121,7 @@ def main():
             self.fc2 = nn.Linear(120, 84)
             self.fc3 = nn.Linear(84, 2)
 
+
         def forward(self, x):
             x = self.pool(F.relu(self.conv1(x)))
             x = self.pool(F.relu(self.conv2(x)))
@@ -157,39 +160,60 @@ def main():
     )
 
     classes = data.classes
-    dataloader = torch.utils.data.DataLoader(data, batch_size=32, shuffle=True, num_workers=1)
+    dataloader = torch.utils.data.DataLoader(data, batch_size=32 , shuffle=True, num_workers=1)
 
 #############################################
 #### loading pretrained model, if exists ####
 #############################################
 
-    if os.path.exists('adv_attack.pt'):
-        print('----> loaded pretrained model')
-        net.load_state_dict(torch.load('adv_attack.pt'))
+    # if os.path.exists('adv_attack.pt'):
+    #     print('----> loaded pretrained model')
+    #     net.load_state_dict(torch.load('adv_attack.pt'))
 
 ###########################
 #### starting training ####
 ###########################
 
-    num_epochs = 15
+    num_epochs = 20
 
     print(f'----> starting training for {num_epochs} epochs')
-
+    
+    
     with tqdm(range(num_epochs), desc='training') as training_bar:
         for epoch in training_bar:
             running_loss = 0.0
             epoch_bar = tqdm(enumerate(dataloader), desc=f'epoch {epoch + 1}')
             for i, data in epoch_bar:
                inputs, labels = data
-               outputs = net(inputs)
+               inputs.requires_grad = True
+            #    outputs = net(inputs)
 
+            #    optimizer.zero_grad()
+            #    loss = criterion(outputs, labels)
+            #    loss.backward()
+            #    optimizer.step()
+               epsilon = 0.01
+               
+               out = net(inputs)
                optimizer.zero_grad()
-               loss = criterion(outputs, labels)
+               loss = criterion(out,labels)
                loss.backward()
                optimizer.step()
+               data_grad = inputs.grad.data
+               perturbed_inputs = fgsm_attack(inputs, epsilon, data_grad)
+               train_inputs = torch.cat((inputs, perturbed_inputs), 0) #concatenating original images with perturbed images
+               train_labels = torch.cat((labels, labels), 0)
+               optimizer.zero_grad()
+               outputs = net(train_inputs)
+               outputs.retain_grad()
+               train_loss = criterion(outputs, train_labels)
+               train_loss.backward()
+               optimizer.step()
+               
 
-               running_loss += loss.item()
+               running_loss += train_loss.item()
                epoch_bar.set_postfix(average_running_loss=running_loss / (i + 1))
+
 
     print('----> finished training')
     torch.save(net.state_dict(), 'submission21411035.pt')
@@ -198,4 +222,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
