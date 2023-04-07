@@ -73,7 +73,6 @@ def main():
     ################################
 
     transform = transforms.Compose([
-    transforms.RandomHorizontalFlip(),
     transforms.ToTensor(),
     transforms.Normalize([0.4901, 0.4617, 0.4061], [0.1977, 0.1956, 0.1947])
     ])
