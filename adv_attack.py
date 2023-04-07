@@ -37,7 +37,6 @@ def main():
     class Net(nn.Module):
         def __init__(self):
             super().__init__()
-            torchvision.transforms.RandomHorizontalFlip(p=0.5)
             self.conv1 = nn.Conv2d(3, 6, 5)
             self.pool = nn.MaxPool2d(2, 2)
             self.conv2 = nn.Conv2d(6, 16, 5)
@@ -58,7 +57,7 @@ def main():
 
     net = Net()
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(net.parameters(), lr=0.001)
+    optimizer = optim.Adam(net.parameters(), lr=0.0025)
 
     ########################
     #### unzipping data ####
@@ -74,6 +73,7 @@ def main():
     ################################
 
     transform = transforms.Compose([
+    transforms.RandomHorizontalFlip(),
     transforms.ToTensor(),
     transforms.Normalize([0.4901, 0.4617, 0.4061], [0.1977, 0.1956, 0.1947])
     ])
@@ -103,7 +103,7 @@ def main():
                inputs, labels = data
                inputs.requires_grad = True
 
-               epsilon = 0.01
+               epsilon = 0.015
                
                out = net(inputs)
                optimizer.zero_grad()
